@@ -2,16 +2,24 @@
 //  ScholarApp.swift
 //  Scholar
 //
-//  Created by Rishab Reddy Paili on 7/28/26.
-//
 
 import SwiftUI
 
 @main
 struct ScholarApp: App {
+    @State private var store = Store()
+
+    init() {
+        // `.playback` has to be live before the first web view or AVPlayer
+        // starts, otherwise audio is silenced by the ring switch.
+        AudioEngine.activateSession()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(store)
+                .preferredColorScheme(.dark)
         }
     }
 }
