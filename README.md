@@ -73,6 +73,22 @@ A recipe                        → (none)
 
 Materials store the extractor version that produced their keywords, so improving extraction re-derives everything already in the library instead of leaving it with stale topics.
 
+### Then reading it properly
+
+On hardware that supports Apple Intelligence, the **Foundation Models** framework's on-device `SystemLanguageModel` reads each document once at import and returns a title, a one-line summary, its subjects, search phrases, and — most usefully — the concepts the document is *about* rather than only the words it contains.
+
+That last one earns its place. Keyword matching can only recognise content that echoes the document's own vocabulary, so notes on training models locally never matched a clip called "Fine-tuning a small model with LoRA": the notes never say "LoRA". The model supplies the adjacent names, they join the keyword list, and the existing fast matcher does the rest. One model call per document, at import — nothing runs while you scroll.
+
+The model can narrow the classification or break a tie. It cannot widen one:
+
+- Where model and extractor agree, the model's ordering wins.
+- Where the extractor found nothing, the model answers alone, and only with one subject.
+- Where they flatly disagree, **the extractor wins.** It only ever speaks when it matched anchor terms that mean one subject and nothing else.
+
+Both halves of that rule came from watching it on real notes. Unconstrained, the model tagged notes on training models on a Mac as AI & Tech *and* Engineering — and that second tag puts an entire unrelated channel list behind a study feed. Trusted outright, it re-filed synaptic transmission notes from Neuroscience to Biology, which is defensible in a viva and useless in a feed.
+
+Everything the model returns is validated against the catalogue before use, so it can suggest but never invent a subject. And nothing depends on it: the framework is missing on older hardware, off until Apple Intelligence is enabled, absent while assets download, and unsupported in most locales. Every path falls back to the deterministic one, and the import flow is identical on a device that has never heard of it.
+
 ---
 
 ## Project layout
@@ -82,6 +98,7 @@ Scholar/
 ├── Core/          Models, Store (all persistence), Interest catalogue, theme, shared views
 ├── Feed/          Paging feed, short card, feed engine, YouTube player
 ├── Listen/        Audio engine, podcast card, episode browser, mini player
+├── Intelligence/  On-device foundation model: availability gate, document analyst
 ├── Study/         Import, text extraction, keyword extraction, StudyMaterial
 ├── Topics/        Dashboard, interest grid, onboarding
 ├── Generate/      Build-a-feed-from-a-topic flow
@@ -112,6 +129,8 @@ Shorts play fine in the Simulator, contrary to the usual folklore — only the b
 ## Privacy
 
 Everything is local. Votes, saves, seen items, per-topic progress, the streak, and imported study materials all live in `UserDefaults` on the device. There is no analytics, no account system, no server owned by this project, and no upload path for your notes. Network traffic goes to YouTube, the iTunes directory, and podcast RSS hosts — the same places a browser would go.
+
+Document understanding uses `SystemLanguageModel`, which is the **on-device** model. Your notes are never sent to Private Cloud Compute or anywhere else.
 
 ---
 

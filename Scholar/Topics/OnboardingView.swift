@@ -70,20 +70,9 @@ struct OnboardingView: View {
             .padding(.top, 24)
 
             ScrollView {
-                FlowLayout(spacing: 8, lineSpacing: 8) {
-                    ForEach(Interest.all) { interest in
-                        TagChip(
-                            text: interest.name,
-                            emoji: interest.emoji,
-                            tint: interest.tint,
-                            isOn: store.isSelected(interest)
-                        ) {
-                            withAnimation(.snappy(duration: 0.2)) { store.toggle(interest) }
-                        }
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
+                TopicTileGrid(interests: Interest.all)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
             }
         }
     }

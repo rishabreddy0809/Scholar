@@ -37,20 +37,7 @@ struct InterestGridView: View {
                     ForEach(InterestCategory.allCases) { category in
                         if !category.interests.isEmpty {
                             section(category.title) {
-                                flow {
-                                    ForEach(category.interests) { interest in
-                                        TagChip(
-                                            text: interest.name,
-                                            emoji: interest.emoji,
-                                            tint: interest.tint,
-                                            isOn: store.isSelected(interest)
-                                        ) {
-                                            withAnimation(.snappy(duration: 0.2)) {
-                                                store.toggle(interest)
-                                            }
-                                        }
-                                    }
-                                }
+                                TopicTileGrid(interests: category.interests)
                             }
                         }
                     }

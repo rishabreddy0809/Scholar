@@ -96,6 +96,11 @@ struct ContentView: View {
             .animation(.spring(duration: 0.3), value: audio.isPinned)
         }
         .fullScreenCover(item: $focused) { focusedFeed($0) }
+        .task {
+            // Catches up any document imported before Apple Intelligence was
+            // available. No-op on hardware that doesn't have it.
+            await store.analyseMaterialsIfNeeded()
+        }
         .onChange(of: route) { _, newRoute in
             if case .material(let material) = newRoute {
                 // Focusing a document takes over the main feed rather than

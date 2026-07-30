@@ -210,6 +210,24 @@ final class Store {
         materials[index].itemsStudied += 1
     }
 
+    /// Reads any material the on-device model hasn't seen yet.
+    ///
+    /// Imports done before Apple Intelligence was enabled — or while it was
+    /// still downloading — otherwise stay on the deterministic topics forever.
+    /// Capped per launch: this is a background improvement, not something the
+    /// user is waiting on, and the model handles one request at a time.
+    func analyseMaterialsIfNeeded(limit: Int = 3) async {
+        guard Intelligence.isReady else { return }
+
+        for material in materials.filter(\.needsAnalysis).prefix(limit) {
+            let analysed = await MaterialAnalyst.enrich(material)
+            guard analysed.analystVersion != nil,
+                  let index = materials.firstIndex(where: { $0.id == material.id })
+            else { continue }
+            materials[index] = analysed
+        }
+    }
+
     // MARK: - Generated feeds
 
     func addGeneratedFeed(_ feed: GeneratedFeed) {

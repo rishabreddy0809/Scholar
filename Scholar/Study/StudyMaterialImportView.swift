@@ -161,7 +161,7 @@ struct StudyMaterialImportView: View {
 
             Button {
                 let text = typedText
-                run { try MaterialImporter.material(fromTypedText: text) }
+                run { try await MaterialImporter.material(fromTypedText: text) }
             } label: {
                 Text("Build my feed from this")
                     .font(.system(size: 15, weight: .bold))
@@ -180,14 +180,30 @@ struct StudyMaterialImportView: View {
         typedText.split { $0.isWhitespace }.count >= 12
     }
 
+    @ViewBuilder
     private var privacyNote: some View {
-        Label("Your files never leave the device — text extraction and keywording both run locally.",
-              systemImage: "lock.fill")
-            .font(.system(size: 12))
-            .foregroundStyle(Theme.textDim)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface(12)
+        let usesModel = Intelligence.isReady
+
+        VStack(alignment: .leading, spacing: 8) {
+            Label(usesModel
+                  ? "Your files never leave the device — text extraction, keywording and Apple Intelligence all run locally."
+                  : "Your files never leave the device — text extraction and keywording both run locally.",
+                  systemImage: "lock.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textDim)
+
+            // Only worth explaining when it changes what the user gets. On a
+            // device that simply can't run the model, saying so once is honest;
+            // nagging about it on every screen is not.
+            if let hint = Intelligence.availability.hint {
+                Label(hint, systemImage: "sparkles")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textFaint)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface(12)
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -213,6 +229,12 @@ struct StudyMaterialImportView: View {
                 Text("\(material.wordCount) words read · \(material.keywords.count) key topics found")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.textDim)
+                if let summary = material.summary {
+                    Text(summary)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textDim)
+                        .padding(.top, 4)
+                }
             }
 
             VStack(alignment: .leading, spacing: 10) {

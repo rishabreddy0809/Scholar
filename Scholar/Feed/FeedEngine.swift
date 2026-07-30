@@ -42,8 +42,17 @@ final class FeedEngine {
     private(set) var items: [FeedItem] = []
     private(set) var isLoading = false
     private(set) var isExtending = false
+    /// Set only when the sources themselves came back with nothing — never
+    /// because the relevance filter rejected what they returned. Those are
+    /// different failures and they need different words in front of the user.
     private(set) var loadFailed = false
     private(set) var recycled = false
+
+    /// Whether a wave actually went out to the network this fill, and whether
+    /// anything at all came back before filtering. Together they separate "the
+    /// feeds are unreachable" from "the feeds are fine and nothing matched".
+    private var attemptedFetch = false
+    private var fetchedAnything = false
 
     let kind: FeedKind
     private var source: FeedSource
@@ -101,8 +110,12 @@ final class FeedEngine {
         defer { isLoading = false }
 
         if !hasSources { resetQueues() }
-        let added = await fill()
-        loadFailed = added == 0
+        _ = await fill()
+        // An empty feed is only a *load* failure when the fetches came back
+        // empty-handed. A study feed that pulled 25 channels and found nothing
+        // on topic has loaded perfectly well; telling that user to check their
+        // connection sends them to fix a network that was never broken.
+        loadFailed = attemptedFetch && !fetchedAnything
     }
 
     /// Called as the user scrolls; keeps a runway of items ahead of them.
@@ -133,6 +146,9 @@ final class FeedEngine {
     /// satisfied by a single wave; a focused study feed usually isn't, because
     /// the relevance filter discards most of what comes back.
     private func fill() async -> Int {
+        attemptedFetch = false
+        fetchedAnything = false
+
         var added = 0
         var waves = 0
         while added < minItemsPerFill, waves < maxWavesPerFill, hasSources {
@@ -204,12 +220,16 @@ final class FeedEngine {
     private func pullWave() async -> Int {
         var batches: [[FeedItem]] = []
 
+        attemptedFetch = true
         if kind != .podcasts {
             batches += await pullShortsWave()
         }
         if kind != .shorts {
             batches += await pullPodcastWave()
         }
+        // Recorded before ranking, because this is the question "did the
+        // network answer?" and the filter has not had its say yet.
+        if !batches.isEmpty { fetchedAnything = true }
         guard !batches.isEmpty else { return 0 }
 
         var ordered = interleave(batches)

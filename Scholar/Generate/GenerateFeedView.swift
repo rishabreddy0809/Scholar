@@ -191,10 +191,21 @@ struct GenerateFeedView: View {
 
         // Topic path: match the catalogue for video, search the directory for audio.
         status = "Matching channels…"
-        let matched = matchChannels(for: trimmed)
+        // The on-device model knows that "transformers" typed by someone
+        // learning about AI is not electrical engineering. It only ever adds
+        // subjects; catalogue matching still runs and still decides on its own
+        // when the model is unavailable.
+        let expansion = await MaterialAnalyst.expand(topic: trimmed)
+        let matched = matchChannels(for: trimmed, preferring: expansion?.subjects ?? [])
 
         status = "Searching podcasts…"
-        let shows = await PodcastService.shared.searchShows(trimmed, limit: 10)
+        var shows = await PodcastService.shared.searchShows(trimmed, limit: 10)
+        // A typed topic is often too terse for the directory ("attention
+        // heads"). The model's phrasing is the second attempt, never the first:
+        // what the user actually typed deserves to win when it works.
+        if shows.isEmpty, let phrase = expansion?.phrases.first {
+            shows = await PodcastService.shared.searchShows(phrase, limit: 10)
+        }
 
         guard !matched.isEmpty || !shows.isEmpty else {
             failure = "Nothing found for “\(trimmed)”. Try a broader topic."
@@ -212,13 +223,17 @@ struct GenerateFeedView: View {
 
     /// Scores every interest against the typed text and takes the channels
     /// behind the best matches.
-    private func matchChannels(for text: String) -> [EduChannel] {
+    private func matchChannels(for text: String, preferring suggested: [Interest] = []) -> [EduChannel] {
         let needle = text.lowercased()
         let tokens = KeywordExtractor.tokenize(text)
         let words = Set(tokens.filter { $0.count > 2 })
+        let suggestedIDs = Set(suggested.map(\.id))
 
         let scored = Interest.all.map { interest -> (Interest, Int) in
             var score = 0
+            // Weighted to outrank a keyword coincidence but not a subject the
+            // user named outright, so "physics" still means Physics.
+            if suggestedIDs.contains(interest.id) { score += 16 }
             if interest.name.lowercased().contains(needle) { score += 12 }
             for word in words where interest.name.lowercased().contains(word) { score += 6 }
 

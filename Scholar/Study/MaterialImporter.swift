@@ -40,6 +40,10 @@ nonisolated enum MaterialImporter {
 
     // MARK: - Entry points
 
+    /// Every entry point below builds the material deterministically first and
+    /// then offers it to the on-device model. `enrich` hands back exactly what
+    /// it was given whenever Apple Intelligence is unavailable or unhappy, so
+    /// the import path is identical on a device that has never heard of it.
     static func material(fromFileAt url: URL) async throws -> StudyMaterial {
         // Files handed over by the picker live outside the sandbox.
         let scoped = url.startAccessingSecurityScopedResource()
@@ -50,24 +54,24 @@ nonisolated enum MaterialImporter {
 
         if type?.conforms(to: .pdf) == true || url.pathExtension.lowercased() == "pdf" {
             let text = try pdfText(at: url)
-            return try build(text: text, kind: .pdf, fallbackTitle: fallbackTitle)
+            return await analysed(try build(text: text, kind: .pdf, fallbackTitle: fallbackTitle))
         }
         if type?.conforms(to: .image) == true {
             guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
                 throw ImportError.unreadable
             }
             let text = try await recognizeText(in: image)
-            return try build(text: text, kind: .image, fallbackTitle: fallbackTitle)
+            return await analysed(try build(text: text, kind: .image, fallbackTitle: fallbackTitle))
         }
         if type?.conforms(to: .rtf) == true {
             let text = try richText(at: url)
-            return try build(text: text, kind: .text, fallbackTitle: fallbackTitle)
+            return await analysed(try build(text: text, kind: .text, fallbackTitle: fallbackTitle))
         }
         if type?.conforms(to: .text) == true || type?.conforms(to: .plainText) == true {
             let text = (try? String(contentsOf: url, encoding: .utf8))
                 ?? (try? String(contentsOf: url, encoding: .isoLatin1))
             guard let text else { throw ImportError.unreadable }
-            return try build(text: text, kind: .text, fallbackTitle: fallbackTitle)
+            return await analysed(try build(text: text, kind: .text, fallbackTitle: fallbackTitle))
         }
         throw ImportError.unsupported(url.pathExtension.isEmpty ? "that" : url.pathExtension)
     }
@@ -75,11 +79,15 @@ nonisolated enum MaterialImporter {
     static func material(fromImageData data: Data) async throws -> StudyMaterial {
         guard let image = UIImage(data: data) else { throw ImportError.unreadable }
         let text = try await recognizeText(in: image)
-        return try build(text: text, kind: .image, fallbackTitle: "Scanned notes")
+        return await analysed(try build(text: text, kind: .image, fallbackTitle: "Scanned notes"))
     }
 
-    static func material(fromTypedText text: String) throws -> StudyMaterial {
-        try build(text: text, kind: .text, fallbackTitle: "My notes")
+    static func material(fromTypedText text: String) async throws -> StudyMaterial {
+        await analysed(try build(text: text, kind: .text, fallbackTitle: "My notes"))
+    }
+
+    private static func analysed(_ material: StudyMaterial) async -> StudyMaterial {
+        await MaterialAnalyst.enrich(material)
     }
 
     // MARK: - Extraction
@@ -157,6 +165,10 @@ nonisolated enum MaterialImporter {
         updated.interestIDs = refreshed.interestIDs
         updated.searchQueries = refreshed.searchQueries
         updated.extractorVersion = KeywordExtractor.version
+        // Re-deriving throws away anything the model contributed, because the
+        // deterministic build knows nothing about it. Clearing the stamp puts
+        // the document back in the queue for the catch-up pass on launch.
+        updated.analystVersion = nil
         return updated
     }
 

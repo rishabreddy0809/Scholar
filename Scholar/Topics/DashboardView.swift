@@ -291,10 +291,7 @@ struct DashboardView: View {
             route = .topic(interest.id)
         } label: {
             HStack(spacing: 13) {
-                Text(interest.emoji)
-                    .font(.system(size: 22))
-                    .frame(width: 48, height: 48)
-                    .background(interest.tint.opacity(0.18), in: .rect(cornerRadius: 12))
+                TopicBadge(interest: interest, size: 48)
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text(interest.name)

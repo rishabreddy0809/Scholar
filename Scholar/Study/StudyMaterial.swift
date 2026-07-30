@@ -55,11 +55,18 @@ nonisolated struct StudyMaterial: Identifiable, Codable, Hashable, Sendable {
     /// fail to decode every material saved before this build existed and
     /// silently wipe the user's library.
     var extractorVersion: Int?
+    /// One sentence from the on-device model saying what this document teaches.
+    /// Absent whenever Apple Intelligence wasn't available at import.
+    var summary: String?
+    /// Analyst build that last read this document, or `nil` if none has.
+    /// Optional for the same decoding reason as `extractorVersion`.
+    var analystVersion: Int?
 
     init(id: UUID = UUID(), title: String, kind: MaterialKind, createdAt: Date = .now,
          excerpt: String, keywords: [Keyword], interestIDs: [String],
          searchQueries: [String], itemsStudied: Int = 0, wordCount: Int,
-         extractorVersion: Int? = KeywordExtractor.version) {
+         extractorVersion: Int? = KeywordExtractor.version,
+         summary: String? = nil, analystVersion: Int? = nil) {
         self.id = id
         self.title = title
         self.kind = kind
@@ -71,6 +78,8 @@ nonisolated struct StudyMaterial: Identifiable, Codable, Hashable, Sendable {
         self.itemsStudied = itemsStudied
         self.wordCount = wordCount
         self.extractorVersion = extractorVersion
+        self.summary = summary
+        self.analystVersion = analystVersion
     }
 
     var interests: [Interest] { interestIDs.compactMap(Interest.find) }
@@ -89,6 +98,11 @@ nonisolated struct StudyMaterial: Identifiable, Codable, Hashable, Sendable {
 
     /// True when the stored topics predate the current extractor.
     var needsRederive: Bool { (extractorVersion ?? 0) < KeywordExtractor.version }
+
+    /// True when the on-device model has never read this document, or read it
+    /// with an older prompt. Drives the catch-up pass on launch, so materials
+    /// imported before Apple Intelligence was switched on still benefit.
+    var needsAnalysis: Bool { (analystVersion ?? 0) < MaterialAnalyst.version }
 
     /// How well a piece of content matches this material, plus how many
     /// distinct concepts lined up.
